@@ -629,9 +629,37 @@ namespace PdfReader.BusinessLogic
                 ? value?.Trim() ?? string.Empty
                 : string.Empty;
         }
+         
+
+static bool AreSameMonthYear(string a, string b)
+    {
+        var formats = new[] { "MMM yy", "MMM-yy" };
+
+        bool parsedA = DateTime.TryParseExact(
+            a,
+            formats,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var dateA
+        );
+
+        bool parsedB = DateTime.TryParseExact(
+            b,
+            formats,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var dateB
+        );
+
+        // If either is invalid → NOT equal
+        if (!parsedA || !parsedB)
+            return false;
+
+        return dateA.Year == dateB.Year && dateA.Month == dateB.Month;
+    }
 
 
-        static void CheckFullyMatchedData(Dictionary<string, string> columnValues)
+    static void CheckFullyMatchedData(Dictionary<string, string> columnValues)
         {
             bool isFullyMatched = true;
             List<string> mismatchNotes = new List<string>();
@@ -678,7 +706,7 @@ namespace PdfReader.BusinessLogic
                 isFullyMatched = false;
                 mismatchNotes.Add("Invoice Date");
             } 
-            if (!AreDatesSame(servicesMonths, servicesMonthsPdf))
+            if (!AreSameMonthYear(servicesMonths, servicesMonthsPdf))
             {
                 isFullyMatched = false;
                 mismatchNotes.Add("Services Month");
@@ -693,6 +721,7 @@ namespace PdfReader.BusinessLogic
                 ? string.Join(", ", mismatchNotes) + " did not match"
                 : "Okay";
         }
+ 
 
 
         static double ParseNumber(string value)
