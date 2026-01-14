@@ -32,5 +32,7 @@ namespace PdfReader.BusinessLogic.Model
         public string InvoiceDateValue { get; set; }
         public string BillToDetailsValue { get;set; }
         public string ExchangeRateValue {  get; set; }
+
+        public string ServiceDateValue { get; set; }
     }
 }

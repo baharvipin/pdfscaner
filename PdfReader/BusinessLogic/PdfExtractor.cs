@@ -1,4 +1,11 @@
-﻿using System;
+﻿using iText.Kernel.Pdf;
+using iText.Kernel.Pdf.Canvas.Parser;
+using iText.Kernel.Pdf.Canvas.Parser.Listener;
+using iText.Layout.Element;
+using iText.Layout.Properties.Grid;
+using OfficeOpenXml;
+using PdfReader.BusinessLogic.Model;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Configuration;
@@ -8,15 +15,9 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks; 
-using System.Windows.Forms;
-using iText.Kernel.Pdf;
-using iText.Kernel.Pdf.Canvas.Parser;
-using iText.Kernel.Pdf.Canvas.Parser.Listener;
-using iText.Layout.Element;
-using iText.Layout.Properties.Grid;
-using OfficeOpenXml;
-using PdfReader.BusinessLogic.Model;
+using System.Windows.Forms; 
 
 namespace PdfReader.BusinessLogic
 {
@@ -128,6 +129,33 @@ namespace PdfReader.BusinessLogic
             };
         }
 
+   
+        public static string ExtractMonthFromPdf(string pdfPath)
+        {
+            // Update the problematic line:
+             var pdfDocument = new PdfDocument(new iText.Kernel.Pdf.PdfReader(pdfPath));
+
+            for (int pageNum = 1; pageNum <= pdfDocument.GetNumberOfPages(); pageNum++)
+            {
+                var page = pdfDocument.GetPage(pageNum);
+                var strategy = new SimpleTextExtractionStrategy();
+                var pageText = PdfTextExtractor.GetTextFromPage(page, strategy);
+
+                var match = Regex.Match(
+                    pageText,
+                    @"month\s+of\s+([A-Za-z]{3}-\d{2})",
+                    RegexOptions.IgnoreCase
+                );
+
+                if (match.Success)
+                {
+                    return match.Groups[1].Value; // Nov-25
+                }
+            }
+
+            return string.Empty;
+        }
+
         public static PdfExtractionResult ExtractValuesFromPdfs(List<string> pdfPaths, int tabNumber)
         {
             try
@@ -144,6 +172,7 @@ namespace PdfReader.BusinessLogic
                         var invoiceDateValue = ExtractGrandTotalFromPdf(pdfPath, "Invoice Date :");
                         var billToDetailsValue = ExtractGrandTotalFromPdf(pdfPath, "Bill To");
                         var exchangeRateValue = ExtractGrandTotalFromPdf(pdfPath, "Authorised Signatory");
+                        var serviceDateValue = ExtractMonthFromPdf(pdfPath);
                         if (!string.IsNullOrEmpty(invoiceNumber))
                         {
                             PdfExtractedValue pdfExtractedValue = new PdfExtractedValue();
@@ -152,6 +181,7 @@ namespace PdfReader.BusinessLogic
                             pdfExtractedValue.InvoiceDateValue = invoiceDateValue;
                             pdfExtractedValue.BillToDetailsValue = billToDetailsValue;
                             pdfExtractedValue.ExchangeRateValue = exchangeRateValue;
+                            pdfExtractedValue.ServiceDateValue = serviceDateValue;
                             listOfInvoice.Add(invoiceNumber);
                             if (!invoiceGrandValue.ContainsKey(invoiceNumber))
                             {
@@ -431,6 +461,9 @@ namespace PdfReader.BusinessLogic
                             case "FX RATE":
                                 columnValues["FX RATE PDF"] = pdfExtractedValue.ExchangeRateValue;
                                 break;
+                            case "Services Month":
+                                columnValues["Services Month PDF"] = pdfExtractedValue.ServiceDateValue;
+                                break;
                         }
                     }
 
@@ -615,6 +648,9 @@ namespace PdfReader.BusinessLogic
             string invoiceDate = GetValue(columnValues, "Invoice Date");
             string invoiceDatePdf = GetValue(columnValues, "Invoice Date PDF");
 
+            string servicesMonths = GetValue(columnValues, "Services Month");
+            string servicesMonthsPdf = GetValue(columnValues, "Services Month PDF");
+
             // Entity name comparison
             if (!string.Equals(entityName, billToPdf, StringComparison.OrdinalIgnoreCase))
             {
@@ -641,6 +677,11 @@ namespace PdfReader.BusinessLogic
             {
                 isFullyMatched = false;
                 mismatchNotes.Add("Invoice Date");
+            } 
+            if (!AreDatesSame(servicesMonths, servicesMonthsPdf))
+            {
+                isFullyMatched = false;
+                mismatchNotes.Add("Services Month");
             }
 
             // Add / Update result columns safely
