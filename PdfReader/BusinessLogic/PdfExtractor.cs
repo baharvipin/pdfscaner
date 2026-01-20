@@ -108,7 +108,6 @@ namespace PdfReader.BusinessLogic
                 if (File.Exists(pdfPath))
                 {
                     var invoiceNumber = ExtractGrandTotalFromPdf(pdfPath, "Invoice No");
-                    var grandValue = ExtractGrandTotalFromPdf(pdfPath, "Grand Total");
                     if (!string.IsNullOrEmpty(invoiceNumber))
                     {
                         listOfInvoice.Add(invoiceNumber); 
@@ -129,7 +128,59 @@ namespace PdfReader.BusinessLogic
             };
         }
 
-   
+        public static string ExtractExchangeRateFromPdf(string pdfPath)
+        {
+            using (var pdfDocument = new PdfDocument(new iText.Kernel.Pdf.PdfReader(pdfPath)))
+            {
+                for (int pageNum = 1; pageNum <= pdfDocument.GetNumberOfPages(); pageNum++)
+                {
+                    var page = pdfDocument.GetPage(pageNum);
+                    var strategy = new SimpleTextExtractionStrategy();
+                    var pageText = PdfTextExtractor.GetTextFromPage(page, strategy);
+
+                    var lines = pageText
+                        .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(l => l.Trim())
+                        .ToList();
+
+                    for (int i = 0; i < lines.Count; i++)
+                    {
+                        if (lines[i].Equals("ExchangeRate", StringComparison.OrdinalIgnoreCase))
+                        {
+                            int usdIndex = lines.FindIndex(l =>
+    l.Equals("USD", StringComparison.OrdinalIgnoreCase)
+);
+
+                            if (usdIndex >= 0 && usdIndex + 1 < lines.Count)
+                            {
+                                return ExtractNumberFromLineExchangeRate(lines[usdIndex + 1]);
+                            }
+                            else
+                            {
+                                return string.Empty;
+                            } 
+                            // 🔼 Look UP for nearest numeric value
+                            //for (int j = i - 1; j >= 0; j--)
+                            //{
+                            //    var value = ExtractNumberFromLineExchangeRate(lines[j]);
+                            //    if (!string.IsNullOrWhiteSpace(value))
+                            //        return value;
+                            //}
+                        }
+                    }
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static string ExtractNumberFromLineExchangeRate(string line)
+        {
+            var match = Regex.Match(line, @"\d+(\.\d+)?");
+            return match.Success ? match.Value : string.Empty;
+        }
+
+
         public static string ExtractMonthFromPdf(string pdfPath)
         {
             // Update the problematic line:
@@ -171,7 +222,7 @@ namespace PdfReader.BusinessLogic
                         var grandValue = ExtractGrandTotalFromPdf(pdfPath, "Grand Total");
                         var invoiceDateValue = ExtractGrandTotalFromPdf(pdfPath, "Invoice Date :");
                         var billToDetailsValue = ExtractGrandTotalFromPdf(pdfPath, "Bill To");
-                        var exchangeRateValue = ExtractGrandTotalFromPdf(pdfPath, "Authorised Signatory");
+                        var exchangeRateValue = ExtractExchangeRateFromPdf(pdfPath);
                         var serviceDateValue = ExtractMonthFromPdf(pdfPath);
                         if (!string.IsNullOrEmpty(invoiceNumber))
                         {
@@ -359,6 +410,10 @@ namespace PdfReader.BusinessLogic
                                     }
                                     
                                 }
+                                if(textTofind == "Grand Total")
+                                {
+                                    k = k - 1;
+                                }
                                 var totalAmount = ExtractNumberFromLine(lines[k]);
                                 if (!string.IsNullOrWhiteSpace(totalAmount))
                                 {
@@ -372,7 +427,7 @@ namespace PdfReader.BusinessLogic
 
             return "";
         }
-
+         
         public static string ExtractNumberFromLine(string input)
         {
             var values = input.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
